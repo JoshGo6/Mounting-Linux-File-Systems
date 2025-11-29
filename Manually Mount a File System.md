@@ -1,9 +1,8 @@
 # Manually Mount a File System
 
-This topic addresses manually mounting a Linux file system. Mounting is the process of attaching a file system--such as ext4, NTFS, VFAT, a network drive, or various others--to the existing Linux directory tree. Mounting a file system that is native to Linux, like ext4, is simpler than mounting other file systems, though the additional complexity for handling other file system is not always that substantial. For example, mounting an NTFS file system is slightly more complex than mounting ext4, while mounting a network drive is yet more complex.
+Mounting is the process of attaching a file system--such as ext4, NTFS, VFAT, a network drive, or various others--to the existing Linux directory tree. This topic addresses manually mounting a Linux file system. (For information on automounting a file system, as well as controlling who can mount and unmount a file system, see [Automatically Mount Partitions Using `fstab`](Automatically%20Mount%20Partitions%20Using%20`fstab`.md).) Mounting a file system that is native to Linux, like ext4, is simpler than mounting other file systems, though the additional complexity for handling other file system is not always that substantial. For example, mounting an NTFS file system is slightly more complex than mounting ext4, while mounting a network drive is yet more complex.
 
-> [!NOTE] Automounting file systems
-> For information on automounting a file system, as well as controlling who can mount and unmount a file system, see [Automatically Mount Partitions Using `fstab`](Automatically%20Mount%20Partitions%20Using%20`fstab`.md).
+> If you're viewing this article on GitHub, the hyperlinks will usually not work, as this repository is viewed locally on my machine using [Obsidian](https://obsidian.md/), which uses its own variant on Markdown. Hyperlinks that are active in Obsidian aren't active in GitHub, and vice versa, unfortunately.
 
 This article contains the following topics:
 
