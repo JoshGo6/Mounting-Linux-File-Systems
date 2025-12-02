@@ -14,6 +14,9 @@ This article contains the following topics:
 - [Manually mount a network drive using `cifs`](#Manually%20mount%20a%20network%20drive%20using%20`cifs`)
 - [Manually mount a drive configured in `/etc/fstab`](#Manually%20mount%20a%20drive%20configured%20in%20`/etc/fstab`)
 - [Specify permissions](#Specify%20permissions)
+  - [Native Linux file systems (`ext4`, `xfs`, and `btrfs`)](#Native%20Linux%20file%20systems%20(`ext4`,%20`xfs`,%20and%20`btrfs`))
+  - [File systems not native to Linux (`FAT32`, `NTFS`, and `exFAT`)](#File%20systems%20not%20native%20to%20Linux%20(`FAT32`,%20`NTFS`,%20and%20`exFAT`))
+  - [Remote file system mounted through `sshfs`](#Remote%20file%20system%20mounted%20through%20`sshfs`)
 
 ## Mount a drive native to Linux
 
@@ -166,9 +169,9 @@ When you mount a file system to a mount point, the original permissions of the m
 
 > If the file system is specified in `/etc/fstab`, then the file system will either be auto-mounted, or permissions will be set for users to mount it. If neither of these conditions is true, you need `sudo` privileges to mount the file system.
 
-The following are basic guidelines of how you can set permissions for several types of mounted file systems:
+The following sections provide guidelines for setting permissions for several types of mounted file systems:
 
-**Native Linux file systems (ext4, xfs, and btrfs)**:
+### Native Linux file systems (`ext4`, `xfs`, and `btrfs`)
 
 If you need to change the file permissions of the directories and files that are mounted, change these using `chown` and `chmod`. These changes persist after being unmounted.
 
@@ -189,7 +192,7 @@ sudo chmod -R 755 /mnt/shared
 sudo find /mnt/shared -type f -exec chmod 644 {} \;
 ```
 
-**File systems not native to Linux (FAT32, NTFS, exFAT)**
+### File systems not native to Linux (`FAT32`, `NTFS`, and `exFAT`)
 
 To mount file systems not native to Linux, you have numerous options to set permissions. To mount an `ntfs` drive so that everyone has read only permissions:
 
@@ -213,6 +216,7 @@ sudo mount -o uid=$(id -u),gid=$(id -g),umask=022 -t ntfs-3g /dev/sdb /mnt/ntfs
 ```
 
 > NTFS doesn't use Linux permissions. You create these permissions during the mount operation, and they exist only while the file system is mounted. When you specify the UID and GID as yours, you become the owner and primary group of the directories and files while they're mounted. The mounting operation gives everyone `rwx` permissions on all directories and `rw` permissions on all files. By also specifying a `umask` of `022`, the resulting permissions become `777` - `022` = `755` for directories, and `666` - `022` = `644` for files, where you are the owner, and the group is your primary group.  A less compact alternative is to specify `dmask`, which subtracts permissions on directories, and `fmask`, which subtracts permissions on files:
+>  
 > ```bash
 >  sudo mount -o uid=$(id -u),gid=$(id -g),dmask=022,fmask=022 -t ntfs-3g /dev/sdb /mnt/ntfs
 > ```
@@ -235,7 +239,7 @@ sudo mount -t exfat /dev/sdb1 /mnt/exfat \
   -o uid=$(id -u),gid=$(id -g),dmask=022,fmask=133
 ```
 
-**Remote file system mounted through `sshfs`**
+### Remote file system mounted through `sshfs`
 
 When you mount a remote drive using `sshfs`, specifying permissions at the mount point may be different than specifying permissions on the remote server. For example, if you mount a native Linux file system like `ext4` and you issue `chown` and/or `chmod` commands (successfully), you change the permissions on the remote server, and these persist after unmounting. On the other hand, you could mount the same remote server using `idmap` and/or using `gid`, `uid`, and `umask`, which controls permissions at the mount point without changing any ownership or permissions on the remote server.
 
