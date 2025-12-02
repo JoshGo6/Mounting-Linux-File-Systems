@@ -162,7 +162,6 @@ There are at least three other alternatives to this approach for a volume that r
 
 When you mount a file system to a mount point, the original permissions of the mount point become irrelevant, and they're replaced by the permissions of the root directory of the file system you're mounting.
 
-> [!NOTE] Who is allowed to mount a file system?
 > If the file system is specified in `/etc/fstab`, then the file system will either be auto-mounted, or permissions will be set for users to mount it. If neither of these conditions is true, you need `sudo` privileges to mount the file system.
 
 The following are basic guidelines of how you can set permissions for several types of mounted file systems:
@@ -211,7 +210,6 @@ Yet another option is specifying permissions for you, the user that mounts the f
 sudo mount -o uid=$(id -u),gid=$(id -g),umask=022 -t ntfs-3g /dev/sdb /mnt/ntfs
 ```
 
-> [!NOTE] About UIDs and GIDs
 > NTFS doesn't use Linux permissions. You create these permissions during the mount operation, and they exist only while the file system is mounted. When you specify the UID and GID as yours, you become the owner and primary group of the directories and files while they're mounted. The mounting operation gives everyone `rwx` permissions on all directories and `rw` permissions on all files. By also specifying a `umask` of `022`, the resulting permissions become `777` - `022` = `755` for directories, and `666` - `022` = `644` for files, where you are the owner, and the group is your primary group.  A less compact alternative is to specify `dmask`, which subtracts permissions on directories, and `fmask`, which subtracts permissions on files:
 > ```bash
 >  sudo mount -o uid=$(id -u),gid=$(id -g),dmask=022,fmask=022 -t ntfs-3g /dev/sdb /mnt/ntfs
