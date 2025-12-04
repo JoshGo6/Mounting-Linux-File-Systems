@@ -8,11 +8,13 @@ Mounting a file system that is native to Linux, like ext4, is simpler than mount
 
 This article contains the following topics:
 
+
 - [Mount a drive native to Linux](#Mount%20a%20drive%20native%20to%20Linux)
 - [Mount an NTFS drive](#Mount%20an%20NTFS%20drive)
 - [Mount a network drive using `sshfs`](#Mount%20a%20network%20drive%20using%20`sshfs`)
 - [Manually mount a network drive using `cifs`](#Manually%20mount%20a%20network%20drive%20using%20`cifs`)
 - [Manually mount a drive configured in `/etc/fstab`](#Manually%20mount%20a%20drive%20configured%20in%20`/etc/fstab`)
+- [Bind mount directories](#Bind%20mount%20directories)
 - [Specify permissions](#Specify%20permissions)
   - [Native Linux file systems (`ext4`, `xfs`, and `btrfs`)](#Native%20Linux%20file%20systems%20(`ext4`,%20`xfs`,%20and%20`btrfs`))
   - [File systems not native to Linux (`FAT32`, `NTFS`, and `exFAT`)](#File%20systems%20not%20native%20to%20Linux%20(`FAT32`,%20`NTFS`,%20and%20`exFAT`))
@@ -162,6 +164,29 @@ There are at least three other alternatives to this approach for a volume that r
 - Have `root` mount the drive using its own `ssh` key that doesn't have a passphrase. Make the key readable only by `root` by setting its permissions to `600`.
 - Put a line in `.bashrc` right after the `ssh` key has been entered for the system to wait a few seconds for the key to load, and then for the system to mount the drive.
 - Refresh auto-mounts in `/etc/fstab` after entering your passphrase by running `mount -a`.
+
+## Bind mount directories
+
+So far we've spoken about mounting block devices and remote file systems. You can also mount a directory temporarily under another directory, using a *bind mount*. When you create a bind mount, you are showing an existing directory and all of its subdirectories, recursively, at another point in the directory tree, with the following properties:
+
+- The original contents of the mounting point are masked. They are not deleted, but are temporarily unavailable.
+- The source directory and the bind mount directory are identical. They show the same files and subdirectories, and changes to one result in automatic changes to the other.
+- By default, any mount points that are subdirectories under the source directory are not mounted at the bind mount point. You can change this behavior, however, by using the `--rbind` option instead of the `--bind` option.
+
+The following examples demonstrate bind mount syntax:
+
+```bash
+# Bind mount /source/dir to /mnt/destination
+mount --bind /source/dir /mnt/destination
+
+# Recursively bind mount /source/dir and all its mount points 
+mount --rbind /source/dir /mnt/destination
+
+# Unmount a recursively bind mounted directory structure
+umount -R /mnt/destination
+```
+
+> **NOTE:** Because bind mounting by default doesn't mount any mount points *below* the bind mount point, if there were subdirectories that were masked in the source because they were mount points, once the source directory is bind mounted, the target directory shows the original, unmasked contents of the source directories. In other words, the target shows the contents of the subdirectories of the source before they were masked by (previous) mounting operations.
 
 ## Specify permissions
 
