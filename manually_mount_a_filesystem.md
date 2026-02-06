@@ -2,25 +2,27 @@
 
 Mounting is the process of attaching a filesystem--such as ext4, NTFS, VFAT, a network drive, or various others--to the existing Linux directory tree. This topic addresses manually mounting a Linux filesystem. (For information on automounting a filesystem, as well as controlling who can mount and unmount a filesystem, see [Automatically Mount Partitions Using `fstab`](Automatically%20Mount%20Partitions%20Using%20`fstab`.md), though this file may not be visible on GitHub.)
 
-Mounting a filesystem that is native to Linux, like ext4, is simpler than mounting other filesystems, though the additional complexity for handling other filesystem is not always that substantial. For example, mounting an NTFS filesystem is slightly more complex than mounting ext4, while mounting a network drive is yet more complex.
-
 > If you're viewing this article on GitHub, the hyperlinks to sections within this document, as well as hyperlinks to other documents I've written typically won't work, as I maintain this repository locally using [Obsidian](https://obsidian.md/), which uses its own Markdown variant. Hyperlinks aren't the only variation between Obsidian and GitHub Flavored Markdown (GFM). 
 
 This article contains the following topics:
 
-- [Mount a drive native to Linux](#Mount%20a%20drive%20native%20to%20Linux)
+- [Linux filesystems vs. other filesystems](#Linux%20filesystems%20vs.%20other%20filesystems)
 - [Mount an NTFS drive](#Mount%20an%20NTFS%20drive)
 - [Mount a network drive using `sshfs`](#Mount%20a%20network%20drive%20using%20`sshfs`)
 - [Manually mount a network drive using `cifs`](#Manually%20mount%20a%20network%20drive%20using%20`cifs`)
 - [Manually mount a drive configured in `/etc/fstab`](#Manually%20mount%20a%20drive%20configured%20in%20`/etc/fstab`)
-- [Unmount a filesystem](#Unmount%20a%20filesystem)
 - [Bind mount directories](#Bind%20mount%20directories)
+- [Unmount a filesystem](#Unmount%20a%20filesystem)
+  - [Unmount Gracefully](#Unmount%20Gracefully)
+  - [Unmount unresponsive filesystems](#Unmount%20unresponsive%20filesystems)
 - [Specify permissions](#Specify%20permissions)
   - [Native Linux filesystems (`ext4`, `xfs`, and `btrfs`)](#Native%20Linux%20filesystems%20(`ext4`,%20`xfs`,%20and%20`btrfs`))
   - [filesystems not native to Linux (`FAT32`, `NTFS`, and `exFAT`)](#filesystems%20not%20native%20to%20Linux%20(`FAT32`,%20`NTFS`,%20and%20`exFAT`))
   - [Remote filesystem mounted through `sshfs`](#Remote%20filesystem%20mounted%20through%20`sshfs`)
 
-## Mount a drive native to Linux
+## Linux filesystems vs. other filesystems
+
+Mounting a filesystem that is native to Linux, like ext4, is simpler than mounting other filesystems, though the additional complexity for handling other filesystem is not always that substantial. For example, mounting an NTFS filesystem is slightly more complex than mounting ext4, while mounting a network drive is yet more complex.
 
 To mount a drive native to Linux, do the following:
 
@@ -109,7 +111,7 @@ A remote drive may support one protocol but not another protcol for remotely mou
     This command mounts the remote directory using `sshfs`, with the following configurations:
 
     - The port is `2222`.
-    - The permissions of the user on the target machine are mapped to the UID and GID of the user executing the `mount` command, with permissions altered by a `umask` of `022`, giving all the permissions of the remote user to the user performing the mount locally, but not giving write privileges to anyone other local user who can access the mounted drive.
+    - The permissions of the user on the target machine are mapped to the UID and GID of the user executing the `mount` command, with permissions altered by a `umask` of `022`, giving all the permissions of the remote user to the user performing the mount locally, but not giving write privileges to anyone other than the local user who can access the mounted drive.
     - The ssh file is specified, which may create a login prompt for the passphrase, even if the passphrase is kept in a key ring  mechanism.
 
      For more information on permissions, see [Specify permissions](#Specify%20permissions).
@@ -141,7 +143,7 @@ sudo mount -t cifs //60.178.52.156/home/joshgo6 /mnt/mywebsite/ -o 'username=jos
 
 ## Manually mount a drive configured in `/etc/fstab`
 
-So far, we've covered mounting drives that aren't configured in `/etc/fstab`. That file specifies how drives are mounted. In many cases, `/etc/fstab` configures your system to auto-mount drives for you so that you don't have to mount them manually, but in some cases, you still have to give the `mount` command to mount these volumes. Examples of this include the following:
+So far, we've covered mounting drives that aren't configured in `/etc/fstab`, the file that specifies how drives are mounted. In many cases, `/etc/fstab` configures your system to auto-mount drives for you so that you don't have to mount them manually, but in some cases, you still have to give the `mount` command to mount these volumes. Examples of this include the following:
 
 - Volumes that are configured in `/etc/fstab` to be mountable by users, but the user has to issue the mount command, since the drive isn't mounted automatically.
 - Volumes that are mounted automatically but have since been unmounted manually.
@@ -224,16 +226,18 @@ fusermount -u /mnt/mywebsite/
 
 ### Unmount unresponsive filesystems
 
-Sometimes your system won't allow you to unmount a filesystem because it's busy or it's unresponsive for a different reason. Before resorting to more aggressive and dangerous methods, you can find out what processes are accessing the filesystem so you can attempt to gracefully terminate them. 
+Sometimes your system won't allow you to unmount a filesystem by using just `umount`. Before resorting to more aggressive and dangerous methods, you can find out what processes are accessing the filesystem so you can attempt to gracefully terminate them. 
 
-> If you try to gracefully unmount a filesystem by issuing the command from a directory within the mount point, the unmount command fails. Before troubleshooting further, ensure that you're attempting to unmount the filesystem from a directory outside of it.
+> Ensure that you're attempting to unmount the filesystem from a directory outside of it.  If you try to gracefully unmount a filesystem by issuing the command from a directory within the mount point, the unmount command fails.
 
 To determine what's accessing the filesystem, including the process name, PID, and other information, use the following command:
 
 ```bash
 # list processes using files on /mnt/my-mount
-lsof /mnt/my-mount
+sudo lsof /mnt/my-mount
 ```
+
+> Running `lsof` without `sudo` may yield no output if `sudo` is running the commands on the mount and/or `sudo` owns the mount.
 
 To only show the PIDs that are using a local filesystem, use the following command, where `m` means, "treat this as a mount point":
 
@@ -245,7 +249,7 @@ For local filesystems, you can attempt to gracefully terminate the processes tha
 
 > Both approaches carry some risk, and neither is foolproof in general. If one method doesn't work, you may then need to attempt the other method in order to successfully unmount the filesystem. When to choose one method over the other, as well as a discussion of the risks of each method is beyond the scope of this article. 
 
-To force kill all of the processes accessing a mounted device and then unmount the filesystem, use the following commands:
+To use the first method, and force kill all of the processes accessing a mounted device and then unmount the filesystem, use the following commands:
 
 ```bash
 # Force kill all of the processes using the mount
@@ -255,7 +259,7 @@ fuser -km /mnt/my-mount
 umount /mnt/my-mount
 ```
 
-As an alternative, if you're concerned about force killing processes, you can *lazily* unmount the filesystem. This approach disconnects the filesystem from the hierarchy, leaving the cleanup of processes to occur later. Once the filesystem can be unmounted, the system does so. To use this approach with a local filesystem, run the following command:
+If you're concerned about force killing processes, you can use the second method, where you *lazily* unmount the filesystem. This approach disconnects the filesystem from the hierarchy, leaving the cleanup of processes to occur later. Once the filesystem can be unmounted, the system does so. To use this approach with a local filesystem, run the following command:
 
 ```bash
 umount -l /mnt/my-mount
@@ -367,7 +371,7 @@ sudo chown josh:josh /mnt/mywebsite
 Next, mount the drive:
 
 ```bash
-sshfs -p 2222 -o default_permissions,uid=$(id -u),gid=$(id -g),umask=0022,IdentityFile=/home/josh/.ssh/id_ed25519 joshgo6@69.174.52.100:/home/joshgo6 /mnt/mywebsite/
+sshfs -o port=2222,default_permissions,allow_other,uid=$(id -u),gid=$(id -g),umask=0022,IdentityFile=/home/josh/.ssh/id_ed25519 joshgo6@69.174.52.100:/home/joshgo6 /mnt/mywebsite
 ```
 
 To unmount the filesystem:
@@ -380,7 +384,7 @@ The follow are some useful options when using `sshfs`, some of which are used in
 
 - **`allow_other`**: Allows all local users to access the SSHFS mount Without this option, only the user who ran `sshfs` may access it. This requires that `user_allow_other` is set in `/etc/fuse.conf`.
 - **`default_permissions`**: Enforces standard local POSIX permission checks using the synthetic permissions created by SSHFS, preventing local users from bypassing access restrictions.
-- **`p`**: The port to connect to on the remote server.
+- **`port=`**: The port to connect to on the remote server.
 - **`uid=`**: Forces all files in the mount to appear owned locally by the specified UID.
 - **`gid=`**: Forces all files in the mount to appear in the specified local group.
 - **`idmap=user`**: Maps all remote file ownership to the UID/GID of the mounting user unless overridden by `uid=` or `gid=`; affects only local representation.
