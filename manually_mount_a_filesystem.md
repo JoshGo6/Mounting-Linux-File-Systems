@@ -2,6 +2,7 @@
 
 Mounting is the process of attaching a filesystem--such as ext4, NTFS, VFAT, a network drive, or various others--to the existing Linux directory tree. This topic addresses manually mounting a Linux filesystem. (For information on automounting a filesystem, as well as controlling who can mount and unmount a filesystem, see [Automatically Mount Partitions Using `fstab`](Automatically%20Mount%20Partitions%20Using%20`fstab`.md), though this file may not be visible on GitHub.)
 
+> [!IMPORTANT]
 > If you're viewing this article on GitHub, the hyperlinks to sections within this document, as well as hyperlinks to other documents I've written typically won't work, as I maintain this repository locally using [Obsidian](https://obsidian.md/), which uses its own Markdown variant. Hyperlinks aren't the only variation between Obsidian and GitHub Flavored Markdown (GFM). 
 
 This article contains the following topics:
