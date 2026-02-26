@@ -1,3 +1,8 @@
+---
+tags:
+  - edit
+edit-message: Needs information on chroot
+---
 # Manually Mount a Filesystem
 
 Mounting is the process of attaching a filesystem--such as ext4, NTFS, VFAT, a network drive, or various others--to the existing Linux directory tree. This topic addresses manually mounting a Linux filesystem. (For information on automounting a filesystem, as well as controlling who can mount and unmount a filesystem, see [Automatically Mount Partitions Using `fstab`](Automatically%20Mount%20Partitions%20Using%20`fstab`.md), though this file may not be visible on GitHub.)
