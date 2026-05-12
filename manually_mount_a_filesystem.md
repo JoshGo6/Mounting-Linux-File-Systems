@@ -175,11 +175,13 @@ There are at least three other alternatives to this approach for a volume that r
 
 ## Bind mount directories
 
-So far we've spoken about mounting block devices and remote filesystems. You can also mount a directory temporarily under another directory, using a *bind mount*. When you create a bind mount, you are showing an existing directory and all of its subdirectories, recursively, at another point in the directory tree, with the following properties:
+So far we've spoken about mounting block devices and remote filesystems. You can also mount a directory under another directory using a *bind mount*. (The two directories don't have to be from the same filesystem.) When you create a bind mount, you show an existing directory and all of its subdirectories, recursively, at another point in the directory tree, with the following properties:
 
 - The original contents of the mounting point are masked. They are not deleted, but are temporarily unavailable.
 - The source directory and the bind mount directory are identical. They show the same files and subdirectories, and changes to one result in automatic changes to the other.
 - By default, any mount points that are subdirectories under the source directory are not mounted at the bind mount point. You can change this behavior, however, by using the `--rbind` option instead of the `--bind` option.
+
+### Basic bind mount syntax and examples
 
 The following code examples show bind mount syntax:
 
@@ -194,19 +196,113 @@ mount --rbind /source/dir /mnt/destination
 umount -R /mnt/destination
 ```
 
-> **NOTE:** Because bind mounting by default doesn't mount any mount points *below* the bind mount point, if there were subdirectories that were masked in the source because they were mount points, once the source directory is bind mounted, the target directory shows the original, unmasked contents of the source directories. In other words, the target shows the contents of the subdirectories of the source before they were masked by (previous) mounting operations.
+> [!note] 
+> Because bind mounting by default doesn't mount any mount points *below* the bind mount point, if there were subdirectories that were masked in the source because they were mount points, once the source directory is bind mounted, the target directory shows the original, unmasked contents of the source directories. In other words, the target shows the contents of the subdirectories of the source before they were masked by (previous) mounting operations.
 
 The following example creates a bind mount allowing a user to view a nested directory in a more convenient place:
 
 ```bash
 mkdir current-year-medical-stuff
 ls current-year-medical-stuff/ # No output, since the directory is empty
-mount --bind ./myrepos/Medical/Medical-2025
 sudo mount --bind ./myrepos/Medical/Medical-2025 ./current-year-medical-stuff/
 ls current-year-medical-stuff/ # Contents of source directory appear
 ```
 
-One important application of bind mounts is to support isolation provided by the `chroot` command, which provides isolation for when you want to execute specific processes so that they cannot access files outside of a directory. While the desired effect is that the processes cannot tamper with the rest of your filesystem, this also denies them access to common system utilities. By bind mounting with read-only permissions the directories of these utilities, you now have the best of both worlds--isolation for the processes and also access to the tools that the processes need.
+### Using bind mounts with `chroot`
+
+One important application of bind mounts is to support isolation provided by the `chroot` command. This isolation is needed when you want to execute specific processes so that they cannot access files outside of a directory. While the desired effect is that the processes cannot tamper with the rest of your filesystem, this also denies them access to common system utilities. By bind mounting with read-only permissions the directories of these utilities, you now have the best of both worlds--isolation for the processes and also access to the tools that the processes need.  The `chroot` command changes the apparent root directory for a process and its children, preventing them from accessing to files and directories above the apparent root directory. The basic syntax is:
+
+```bash
+chroot /path/to/new/root [command]
+```
+
+**Scenario 1: Running an isolated command**
+
+Suppose you want to run an untrusted build script inside a minimal directory tree, preventing it from touching the rest of your filesystem. First, assemble the directory structure the script needs, then bind mount any required system directories with read-only permissions before invoking `chroot`:
+
+```bash
+# Create the isolated root
+mkdir -p /srv/sandbox/{bin,lib,lib64,usr,proc,tmp}
+
+# Bind mount essential system directories read-only
+sudo mount --bind -o ro /bin   /srv/sandbox/bin
+sudo mount --bind -o ro /lib   /srv/sandbox/lib
+sudo mount --bind -o ro /lib64 /srv/sandbox/lib64
+sudo mount --bind -o ro /usr   /srv/sandbox/usr
+
+# Mount /proc so the process can read system information
+sudo mount -t proc proc /srv/sandbox/proc
+
+# Enter the chroot and run the command
+sudo chroot /srv/sandbox /build-script.sh
+
+# Tear down the mounts when finished
+sudo umount -R /srv/sandbox
+```
+
+> [!note]
+> Inside the `chroot`, `/` resolves to `/srv/sandbox`. The script can invoke standard utilities because you bind mounted them in, but it cannot navigate above that root. Because those mounts are read-only, the script cannot modify the host's binaries either.
+
+**Scenario 2: Repairing a corrupted filesystem**
+
+When a system fails to boot because of a corrupted root filesystem, you can mount the damaged disk from a live environment, then use bind mounts to graft the live system's binaries into the corrupted filesystem, and use `chroot` so that repair tools like `fsck`, `grub-install`, or `dpkg` are (a) accessible to the corrupted filesystem, and (b) operate on it, instead of the host filesystem, since you need these commands to repair the corrupted filesystem, not the host filesystem.
+
+The corrupted partition already contains its own binaries and libraries . The damage is typically to the bootloader, package database, or system configuration files, not to `/bin` or `/lib`. What the corrupted partition lacks is the virtual filesystems (`/proc`, `/sys`, `/dev`, `/run`) that the kernel normally populates at boot. Because the partition never booted, those directories are empty. By bind mounting them from the live environment, the chroot gains access to the running kernel's view of devices and processes, which repair tools require to function correctly.
+
+```bash
+# Mount the corrupted root partition from the live environment
+sudo mount /dev/nvme0n1p2 /mnt/broken
+
+# Bind mount the live system's essential virtual and library directories
+sudo mount --bind /dev     /mnt/broken/dev
+sudo mount --bind /dev/pts /mnt/broken/dev/pts
+sudo mount --bind /proc    /mnt/broken/proc
+sudo mount --bind /sys     /mnt/broken/sys
+sudo mount --bind /run     /mnt/broken/run
+
+# Optional: bind mount the live system's package cache for re-installation
+sudo mount --bind /var/cache/apt /mnt/broken/var/cache/apt
+
+# Enter the chroot
+sudo chroot /mnt/broken /bin/bash
+```
+
+Once inside, the shell's root is the damaged partition, but it can reach `/dev`, `/proc`, `/sys`, and `/run` from the live environment. You can now run repair commands as though you had booted normally from that disk:
+
+```bash
+# Inside the chroot
+update-grub
+grub-install /dev/nvme0n1p2
+dpkg --configure -a
+exit
+```
+
+These commands address the most common causes of a non-booting system:
+
+- `update-grub` regenerates the GRUB configuration file (`/boot/grub/grub.cfg`) by scanning for installed kernels and operating systems.
+- `grub-install /dev/nvme0n1p2` writes the GRUB bootloader to the MBR or EFI partition of the target disk.
+
+   > [!note]
+      > This takes the whole disk as its argument, not a partition.
+
+- `dpkg --configure -a` finishes configuring any packages that were left in an incomplete state, which is a frequent cause of boot failures after a crash or interrupted upgrade. 
+- `exit` leaves the chroot and returns you to the live environment.
+
+After exiting, unmount everything in reverse order before rebooting:
+
+```bash
+sudo umount /mnt/broken/var/cache/apt
+sudo umount /mnt/broken/run
+sudo umount /mnt/broken/sys
+sudo umount /mnt/broken/proc
+sudo umount /mnt/broken/dev/pts
+sudo umount /mnt/broken/dev
+sudo umount /mnt/broken/boot
+sudo umount /mnt/broken
+```
+
+> [!important] 
+> The order of unmounting matters. Always unmount children before parents, and virtual filesystems (`proc`, `sys`, `dev`) before the real partition. Failing to do so can leave mount points busy and require a forced unmount or reboot to clean up.
 
 ## Unmount a filesystem
 
@@ -215,6 +311,8 @@ How you unmount a filesystem depends on several factors:
 - Is the filesystem currently being used by processes? For instance, if you're currently viewing PDFs from that filesystem, these are managed by processes, and you cannot just unmount normally immediately.
 - Is the filesystem on a local, block device, is it a FUSE filesystem (like `sshfs`), or it a network filesystem (like `nfs` or `cifs`)?
 - If you cannot unmount the filesystem gracefully, do you want to force terminate the processes using the filesystem, or do you want to forcefully unmount the filesystem?
+
+There are two principal methods for unmounting an unresponsive system. For a case study that shows using both of the methods, see [Method #4: Examine `/proc/mount`](Find%20Information%20about%20Mounted%20Filesystems.md#Method%204%20Examine%20`/proc/mount`).
 
 ### Unmount Gracefully
 
@@ -234,6 +332,7 @@ fusermount -u /mnt/mywebsite/
 
 Sometimes your system won't allow you to unmount a filesystem by using just `umount`. Before resorting to more aggressive and dangerous methods, you can find out what processes are accessing the filesystem so you can attempt to gracefully terminate them. 
 
+> [!important]
 > Ensure that you're attempting to unmount the filesystem from a directory outside of it.  If you try to gracefully unmount a filesystem by issuing the command from a directory within the mount point, the unmount command fails.
 
 To determine what's accessing the filesystem, including the process name, PID, and other information, use the following command:
@@ -243,6 +342,7 @@ To determine what's accessing the filesystem, including the process name, PID, a
 sudo lsof /mnt/my-mount
 ```
 
+> [!note]
 > Running `lsof` without `sudo` may yield no output if `sudo` is running the commands on the mount and/or `sudo` owns the mount.
 
 To only show the PIDs that are using a local filesystem, use the following command, where `m` means, "treat this as a mount point":
